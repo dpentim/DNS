@@ -1,0 +1,329 @@
+Setup hostname  
+
+ 
+
+# hostnamectl set-hostname dns-master.peedee.auth 
+
+ 
+
+Install the DNS(bind) packages 
+
+ 
+
+# yum install bind bind-utils -y 
+
+ 
+
+Go to /etc/named.conf and edit it 
+
+ 
+
+# vim /etc/named.conf 
+
+ 
+
+Look out for OPTION and edit your IP address as highlighted below: 
+
+ 
+
+options { 
+
+        listen-on port 53 { 127.0.0.1;35.184.57.249; }; 
+
+        listen-on-v6 port 53 { ::1; }; 
+
+        directory       "/var/named"; 
+
+        dump-file       "/var/named/data/cache_dump.db"; 
+
+        statistics-file "/var/named/data/named_stats.txt"; 
+
+        memstatistics-file "/var/named/data/named_mem_stats.txt"; 
+
+        recursing-file  "/var/named/data/named.recursing"; 
+
+        secroots-file   "/var/named/data/named.secroots"; 
+
+        allow-query     { localhost; Any; }; 
+
+ 
+
+Start, enable and check the status of the service 
+
+# systemctl start named 
+
+# systemctl enable named 
+
+# systemctl status named 
+
+ 
+
+Open the port that DNS will listen. It listen on both TCP and UDP 
+
+# firewall-cmd --permanent --add-port=53/tcp 
+
+# firewall-cmd --permanent --add-port=53/udp 
+
+# firewall-cmd --reload 
+
+# firewall-cmd --list-all 
+
+ 
+
+Go to /etc/named.conf again and configure  forward and reverse zones. Insert below syntax just two lines before the end of the file. 
+
+ 
+
+zone "peedee.auth" IN { 
+
+        type master; 
+
+        file "forward.peedee.auth"; 
+
+        allow-update { none; }; 
+
+}; 
+
+zone "57.184.35.in-addr.arpa" IN { 
+
+        type master; 
+
+        file "reverse.peedee.auth"; 
+
+        allow-update { none; }; 
+
+}; 
+
+ 
+
+Now lets change directory to /var/named to create forward and reverse.conf  file 
+
+#cd /var/named 
+
+ *when you ls -l 
+
+ 
+
+ 
+
+ 
+
+ 
+
+ 
+
+drwxrwx---. 2 named named   23 Nov 13 14:55 data 
+
+drwxrwx---. 2 named named   60 Nov 13 14:56 dynamic 
+
+-rw-r-----. 1 root  named 2253 Apr  5  2018 named.ca 
+
+-rw-r-----. 1 root  named  152 Dec 15  2009 named.empty 
+
+-rw-r-----. 1 root  named  152 Jun 21  2007 named.localhost 
+
+-rw-r-----. 1 root  named  168 Dec 15  2009 named.loopback 
+
+drwxrwx---. 2 named named    6 Oct 13 15:54 slaves 
+
+You will see the following output. 
+
+Copy named.localhost into …..foward.peedee.auth file and configure as shown below: 
+
+#cp named.localhost forward.peedee.auth 
+
+ 
+
+Now open the forwar.peedee.auth file and configure as shown below: 
+
+#vim  forwar.peedee.auth 
+
+ 
+
+$TTL 1D 
+
+@       IN SOA  dns-master.peedee.auth. root.peedee.auth. ( 
+
+                                        0       ; serial 
+
+                                        1D      ; refresh 
+
+                                        1H      ; retry 
+
+                                        1W      ; expire 
+
+                                        3H )    ; minimum 
+
+@       IN      NS dns-master.peedee.auth 
+
+@       IN      A  35.184.57.249 
+
+dns-master IN   A  35.184.57.249 
+
+host    IN      A  35.184.57.249 
+
+free-ipa IN     A  35.222.138.146 
+
+client  IN      A  35.222.138.146 
+
+ 
+
+Save and quit 
+
+ 
+
+Now that we have created forward.peedee.auth we can copy the file into reverse.peedee.auth to configure it as well. 
+
+# cp forward.peedee.auth reverse.peedee.auth 
+
+ 
+
+Now open reverse.peedee.auth and configure as shown below; 
+
+# vim reverse.peedee.auth 
+
+ 
+
+$TTL 1D 
+
+@       IN SOA  dns-master.peedee.auth. root.peedee.auth. ( 
+
+                                        0       ; serial 
+
+                                        1D      ; refresh 
+
+                                        1H      ; retry 
+
+                                        1W      ; expire 
+
+                                        3H )    ; minimum 
+
+@       IN      NS dns-master.peedee.auth. 
+
+@       IN      PTR peedee.auth. 
+
+dns-master IN   A  35.184.57.249 
+
+host    IN      A  35.184.57.249 
+
+free-ipa IN     A  35.222.138.146 
+
+client  IN      A  35.222.138.146 
+
+249     IN      PTR     dns-server.peedee.auth. 
+
+146     IN      PTR     free-ipa.peedee.auth. 
+
+ 
+
+ 
+
+Now when you do ls -l, you will find out that the file and group is own by root but we want the group to be owned by named, so we change ownership to named. 
+
+ 
+
+drwxrwx---. 2 named named   23 Nov 13 14:55 data 
+
+drwxrwx---. 2 named named   60 Nov 13 14:56 dynamic 
+
+-rw-r-----. 1 root  root   325 Nov 13 16:20 forward.peedee.auth 
+
+-rw-r-----. 1 root  named 2253 Apr  5  2018 named.ca 
+
+-rw-r-----. 1 root  named  152 Dec 15  2009 named.empty 
+
+-rw-r-----. 1 root  named  152 Jun 21  2007 named.localhost 
+
+-rw-r-----. 1 root  named  168 Dec 15  2009 named.loopback 
+
+-rw-r-----. 1 root  root   394 Nov 13 16:25 reverse.peedee.auth 
+
+ 
+
+ 
+
+# chown root:named forward.peedee.auth  
+
+# chown root:named reverse.peedee.auth  
+
+ 
+
+Now lets use below command to check if our configuration is good 
+
+# named-checkconf -z /etc/named.conf 
+
+ 
+
+When it shows the following output, it measn the configuration is ok 
+
+ 
+
+ 
+
+zone peedee.auth/IN: loaded serial 0 
+
+zone 57.184.35.in-addr.arpa/IN: loaded serial 0 
+
+zone localhost.localdomain/IN: loaded serial 0 
+
+zone localhost/IN: loaded serial 0 
+
+zone 1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.ip6.arpa/IN: loaded serial 0 
+
+zone 1.0.0.127.in-addr.arpa/IN: loaded serial 0 
+
+zone 0.in-addr.arpa/IN: loaded serial 0 
+
+OK 
+
+ 
+
+We can also check the zones configurations if the are good too: 
+
+# named-checkconf -z /etc/named.conf 
+
+ 
+
+#named-checkzone forward /var/named/forward.peedee.auth  
+
+zone forward/IN: loaded serial 0 
+
+OK 
+
+ 
+
+#named-checkzone reverse /var/named/reverse.peedee.auth 
+
+zone reverse/IN: loaded serial 0 
+
+OK 
+
+ So above checks shown that all our configurations are ok. 
+
+Now we can restart 
+
+#systemctl restart named  
+
+If it started without an error means our DNS server configuration is good. 
+
+ 
+
+ 
+
+NOW LET US MOVE TO THE CLIENTS SITE 
+
+ 
+
+Setup host name 
+
+# hostnamectl set-hostname free-ipa.peedee.auth 
+
+ 
+
+Open /etc/resolve.conf 
+
+#vim /etc/resolve.conf 
+
+ 
+
+ 
